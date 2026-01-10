@@ -1,28 +1,78 @@
 import express from "express";
+import bodyParser from "body-parser";
 
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
-const API_KEY = process.env.API_KEY;
 
-if (!API_KEY) process.exit(1);
+/*
+In-memory queue
+Format:
+{
+  userId: number,
+  toolName: string
+}
+*/
+let toolQueue = [];
 
-let queue = [];
-
-const addTool = (userId, tool) => queue.push({ userId: Number(userId), tool: String(tool) });
-
+/**
+ * POST /give-tool
+ * Body:
+ * {
+ *   "userId": 123456789,
+ *   "toolName": "AK47"
+ * }
+ */
 app.post("/give-tool", (req, res) => {
-  if (req.headers.authorization !== API_KEY) return res.status(403).json({ error: "Forbidden" });
-  const { userId, tool } = req.body;
-  if (!userId || !tool) return res.status(400).json({ error: "Invalid payload" });
-  addTool(userId, tool);
-  res.json({ success: true });
+    const { userId, toolName } = req.body;
+
+    if (!userId || !toolName) {
+        return res.status(400).json({ error: "Missing userId or toolName" });
+    }
+
+    toolQueue.push({
+        userId: Number(userId),
+        toolName: String(toolName)
+    });
+
+    res.json({
+        success: true,
+        message: "Tool queued",
+        queueSize: toolQueue.length
+    });
 });
 
+/**
+ * GET /fetch-tools
+ * Roblox will call this
+ */
 app.get("/fetch-tools", (req, res) => {
-  res.json(queue);
-  queue = [];
+    res.json({
+        success: true,
+        data: toolQueue
+    });
 });
 
-app.listen(PORT, () => console.log(`Tool API running on port ${PORT}`));
+/**
+ * POST /clear-tools
+ * Roblox confirms delivery
+ * Body:
+ * {
+ *   "userId": 123,
+ *   "toolName": "AK47"
+ * }
+ */
+app.post("/clear-tools", (req, res) => {
+    const { userId, toolName } = req.body;
+
+    toolQueue = toolQueue.filter(
+        t => !(t.userId === Number(userId) && t.toolName === toolName)
+    );
+
+    res.json({ success: true });
+});
+
+app.listen(PORT, () => {
+    console.log(`API running on port ${PORT}`);
+});
