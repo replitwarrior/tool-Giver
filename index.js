@@ -6,73 +6,56 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
-/*
-In-memory queue
-Format:
-{
-  userId: number,
-  toolName: string
-}
-*/
+// --------------------
+// In-memory queue
+// --------------------
 let toolQueue = [];
 
-/**
- * POST /give-tool
- * Body:
- * {
- *   "userId": 123456789,
- *   "toolName": "AK47"
- * }
- */
+// Clear pending on restart
+toolQueue.length = 0;
+console.log("Pending tool queue cleared on startup");
+
+// --------------------
+// POST /give-tool
+// --------------------
 app.post("/give-tool", (req, res) => {
-    const { userId, toolName } = req.body;
+  const { userId, toolName } = req.body;
+  if (!userId || !toolName) {
+    return res.status(400).json({ error: "Missing userId or toolName" });
+  }
 
-    if (!userId || !toolName) {
-        return res.status(400).json({ error: "Missing userId or toolName" });
-    }
-
-    toolQueue.push({
-        userId: Number(userId),
-        toolName: String(toolName)
-    });
-
-    res.json({
-        success: true,
-        message: "Tool queued",
-        queueSize: toolQueue.length
-    });
+  toolQueue.push({ userId: Number(userId), toolName: String(toolName) });
+  return res.json({
+    success: true,
+    message: "Tool queued",
+    queueSize: toolQueue.length,
+  });
 });
 
-/**
- * GET /fetch-tools
- * Roblox will call this
- */
+// --------------------
+// GET /fetch-tools
+// --------------------
 app.get("/fetch-tools", (req, res) => {
-    res.json({
-        success: true,
-        data: toolQueue
-    });
+  res.json({ success: true, data: toolQueue });
 });
 
-/**
- * POST /clear-tools
- * Roblox confirms delivery
- * Body:
- * {
- *   "userId": 123,
- *   "toolName": "AK47"
- * }
- */
+// --------------------
+// POST /clear-tools
+// --------------------
 app.post("/clear-tools", (req, res) => {
-    const { userId, toolName } = req.body;
-
-    toolQueue = toolQueue.filter(
-        t => !(t.userId === Number(userId) && t.toolName === toolName)
-    );
-
-    res.json({ success: true });
+  const { userId, toolName } = req.body;
+  toolQueue = toolQueue.filter(
+    (t) => !(t.userId === Number(userId) && t.toolName === toolName)
+  );
+  res.json({ success: true });
 });
 
-app.listen(PORT, () => {
-    console.log(`API running on port ${PORT}`);
+// --------------------
+// POST /clear-all (for Discord /clear pending)
+// --------------------
+app.post("/clear-all", (req, res) => {
+  toolQueue = [];
+  res.json({ success: true, message: "All pending tools cleared" });
 });
+
+app.listen(PORT, () => console.log(`API running on port ${PORT}`));
